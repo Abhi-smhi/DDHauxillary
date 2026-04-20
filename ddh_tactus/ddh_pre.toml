@@ -1,0 +1,38 @@
+[namelist_update.master.forecast.NAMDDH]
+  LHDGLB = false        # global
+  LHDZON = false        # zonal
+  LHDDOP = true         # limited area
+  LFLEXDIA = true
+  LHDPRG = false
+  LHDPRZ = false
+  LHDPRD = false
+  LHDEFG = false
+  LHDEFZ = false
+  LHDEFD = true
+  LHDHKS = true
+  LHDMCI = false
+  LHDENT = false
+  LRSLDDH = true
+
+[namelist_update.master.forecast.NAMCT0]
+  NDHFDTS = '${steplist:${cfg:general.output_settings.ddh_dl}}'
+  NFRDHFD = 1
+  NFRDHFG = 1
+  NFRDHFZ = 1
+  NFRDHP = 1
+
+[general.output_settings]
+  ddh_dl = "PT1M"       # output frequency for DDH
+
+[archiving.hour.compress.ddh]
+  active = true
+  inpath = "@ARCHIVE@"
+  outpath = "@ARCHIVE@"
+  pattern = "DHF*+*"
+  tarname = "DHF@CNMEXP@.tar.gz"
+
+[archiving.hour.ecfs.ddh]
+  active = true
+
+[scheduler.ecfvars]
+ case_prefix = "ddh_mat_"

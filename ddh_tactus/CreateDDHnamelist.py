@@ -68,7 +68,6 @@ def parse_config():
     return [lonmin, lonmax, latmin, latmax, input_file, output_config, plot_domain]
 
 
-
 def generate_bdeddh_entries(lons, lats):
     """
     Modified from Marvin K (Met Norway) (https://github.com/MetNoMarvinK/DDHauxillary.git)
@@ -97,8 +96,6 @@ def generate_bdeddh_entries(lons, lats):
             )
         L += entry
     return ''.join(L)
-
-
 
 
 if __name__ == "__main__":
@@ -141,10 +138,6 @@ if __name__ == "__main__":
         ax.add_patch(patch)
         ax.set_title('T2m with selected area')
         fig.savefig('dom.png')
-
-
-
-
 
 
 

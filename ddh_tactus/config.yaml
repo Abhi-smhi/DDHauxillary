@@ -1,0 +1,18 @@
+
+# --------------------------------------------------------------------------------------
+#  PART 1 : Creating DDH namelist modifications for tactus
+# --------------------------------------------------------------------------------------
+
+input_file: '$SCRATCH/deode/LEO_test_osm_pgd_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/GRIBPFDEOD+0026h00m00s'
+output_config: "ddh_modif.toml"
+
+lonmin:   2.1
+lonmax:   2.61
+latmin:   48.70
+latmax:   49.00
+
+plot_domain: True
+
+# --------------------------------------------------------------------------------------
+#  PART 2 : Combining DDH output to zarr
+# --------------------------------------------------------------------------------------
