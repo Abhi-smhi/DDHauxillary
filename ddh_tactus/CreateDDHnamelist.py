@@ -1,72 +1,33 @@
 import epygram as epg
-import os
-import sys
-import yaml
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
-
-def load_config(config_path):
-    """Loads and validates the YAML configuration file."""
-    if not os.path.exists(config_path):
-        print(f"Error: Configuration file '{config_path}' not found.")
-        sys.exit(1)
-
-    with open(config_path, 'r') as file:
-        # 1. Read the raw text from the file
-        raw_config = file.read()
-
-        # 2. Expand environment variables in the string
-        expanded_config = os.path.expandvars(raw_config)
-        try:
-            config = yaml.safe_load(expanded_config)
-        except yaml.YAMLError as exc:
-            print(f"Error parsing YAML: {exc}")
-            sys.exit(1)
-
-    return config
-
-def parse_config():
-    """
-    Parses config.yaml
-
-    param: None
-
-    returns:
-
-    list [lonmin, lonmax, latmin, latmax, input_file, output_config]
-
-    """
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                           USER CONFIG STARTS HERE                          │
+# └────────────────────────────────────────────────────────────────────────────┘
 
 
-    config_file = "config.yaml"
-    cfg = load_config(config_file)
-
-    # Simple validation
-    required_fields = ['lonmin', 'lonmax', 'latmin', 'latmax', 'input_file', 'output_config']
-    for field in required_fields:
-        if not cfg.get(field):
-            print(f"Error: Missing required field '{field}' in {config_file}")
-            sys.exit(1)
-
-    lonmin = cfg.get('lonmin')
-    lonmax = cfg.get('lonmax')
-    latmin = cfg.get('latmin')
-    latmax = cfg.get('latmax')
-    input_file = cfg.get('input_file')
-    output_config = cfg.get('output_config')
-    plot_domain = cfg.get('plot_domain')
+# Bounding box tool: https://tools.mofei.life/bbox
+lonmin = 2.188582
+lonmax = 2.493856
+latmin = 48.802005
+latmax = 48.922987
+input_file = '/scratch/swe7088/deode/LEO_test_osm_pgd_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/GRIBPFDEOD+0026h00m00s'
+output_config = 'ddh_modif.toml'
+plot_domain = True
 
 
-    print("\n\n--- Configuration Loaded ---")
-    print(f"File (GRIB/LFA): {input_file}")
-    print(f"Output config:  {output_config}")
-    print(f"Bounding box [lonmin, lonmax, latmin, latmax]:  [{lonmin}, {lonmax}, {latmin}, {latmax}]")
-    print("----------------------------")
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │                           USER CONFIG STOPS HERE                           │
+# └────────────────────────────────────────────────────────────────────────────┘
 
-    return [lonmin, lonmax, latmin, latmax, input_file, output_config, plot_domain]
 
+print(f"\n--- SETTINGS {'-' * 30}")
+print(f"  ID  :: {input_file}")
+print(f"  OUT :: {output_config}")
+print(f"  AREA:: {lonmin}°W, {lonmax}°E / {latmin}°S, {latmax}°N")
+print(f"{'-' * 43}")
 
 def generate_bdeddh_entries(lons, lats):
     """
@@ -101,23 +62,21 @@ def generate_bdeddh_entries(lons, lats):
 if __name__ == "__main__":
 
     epg.init_env()
-    lonmin, lonmax, latmin, latmax, input_file, output_config, plot_domain = parse_config()
-
 
     print('Reading GRIB/LFA file')
-    res_epg = epg.formats.resource(input_file, 'r')
-
-
-    print('Reading field (CLSTEMPERATURE/2 metre temperature)')
-    if res_epg.format == 'FA':
-        field = res_epg.readfield('CLSTEMPERATURE')
-    elif res_epg.format == 'GRIB':
-        field = res_epg.readfield({'name':'2 metre temperature'})
+    with  epg.formats.resource(input_file, 'r') as res_epg:
+        print('Reading field (CLSTEMPERATURE/2 metre temperature)')
+        if res_epg.format == 'FA':
+            field = res_epg.readfield('CLSTEMPERATURE')
+        elif res_epg.format == 'GRIB':
+            field = res_epg.readfield({'name':'2 metre temperature'})
 
     print('Extracting zoom [{lonmin}, {lonmax}, {latmin}, {latmax}]')
     zoom = dict(lonmin=lonmin, lonmax=lonmax, latmin=latmin, latmax=latmax)
     field_zoom = field.extract_zoom(zoom)
     lons, lats = field_zoom.geometry.get_lonlat_grid()
+
+    print(f'Found {lons.size} DDH domains')
 
     print(f'Writing config file {output_config}')
     wstring = generate_bdeddh_entries(lons, lats)
@@ -126,18 +85,26 @@ if __name__ == "__main__":
         file.write('[namelist_update.master.forecast.NAMDDH]\n' + wstring)
 
     if plot_domain:
-        fig =  plt.figure(figsize=(7,7))
-        ax = fig.add_subplot(1,1,1, projection=field.geometry.default_cartopy_CRS())
-        field.cartoplot(epygram_departments=True, colormap='RdYlBu_r', fig = fig, ax = ax)
+        print('plottin domain: dom.png')
 
+        fig =  plt.figure(figsize=(14,7),tight_layout=True)
+        ax1 = fig.add_subplot(1,2,1, projection=field.geometry.default_cartopy_CRS())
+        ax2 = fig.add_subplot(1,2,2, projection=field_zoom.geometry.default_cartopy_CRS())
+
+        field.cartoplot(epygram_departments=True, colormap='RdYlBu_r', fig=fig,
+                ax=ax1)
+        field_zoom.cartoplot(epygram_departments=True, colormap='RdYlBu_r',
+                fig=fig, ax=ax2)
+
+        # -- box showing bounding box
         corner = (zoom['lonmin'], zoom['latmin'])
         box_width  = zoom['lonmax']-zoom['lonmin']
         box_height = zoom['latmax']-zoom['latmin']
         patch = Rectangle(corner, box_width, box_height, fill=False,
                 transform=ccrs.PlateCarree(), edgecolor='green', linewidth=4.)
-        ax.add_patch(patch)
-        ax.set_title('T2m with selected area')
+        ax1.add_patch(patch)
+        ax1.set_title('T2m')
+        ax2.set_title('T2m zoomed')
+        fig.suptitle('T2m with selected area', fontsize=16)
+
         fig.savefig('dom.png')
-
-
-
