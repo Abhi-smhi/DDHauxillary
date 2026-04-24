@@ -19,8 +19,8 @@ PATTERN = "DHFDLDEOD+*s"
 CHUNK_SIZE = 100    # Number of files to process before flushing to Zarr
 ARTICLE_FILE = 'ddh_article_list3'
 
-NWORKER = 1    # no. of workers for dask
-MEMLIMIT = '4GB'   # Gb  for dask
+NWORKER = 16    # no. of workers for dask
+MEMLIMIT = '16GB'   # Gb  for dask
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STOPS HERE                           │
@@ -29,7 +29,7 @@ MEMLIMIT = '4GB'   # Gb  for dask
 # --- glob DDH files in INPUT_DIR
 file_list = glob.glob(INPUT_DIR + PATTERN)
 file_list.sort()
-file_list = file_list[0:10]
+file_list = file_list
 file1 = file_list[0]
 
 
@@ -85,6 +85,7 @@ def read_articles(file_path):
 
     """
     data = np.zeros([len(articles), n_levels, jlon_un.size, jgl_un.size])
+    print(f'Reading file {file_path}')
     with epg.formats.resource(file_path, openmode='r', fmt='DDHLFA') as res:
         for i, article in enumerate(articles):
             field = res.readfield(article)
@@ -107,12 +108,16 @@ if __name__ == "__main__":
 
     read_time = dask.delayed(read_time, pure=True)
     read_article_d = dask.delayed(read_articles, pure=True)
+
+    print(f'\n\tLazy reading DDH validites')
     lazy_times = [read_time(file) for file in file_list]
     times = dask.compute(*lazy_times)
 
     shape = (len(articles), n_levels, jlon_un.size, jgl_un.size)
     dtype = 'float64'
 
+
+    print(f'\n\tLazy reading DDH articles')
     lazy_data = [read_article_d(file)
             for file in file_list]
 
@@ -126,6 +131,7 @@ if __name__ == "__main__":
     for i, article in enumerate(articles):
         data_var[article] = (['time', 'levels', 'jlon','jgl'], stacked[:,i,:,:,:])
 
+    print(f'\n\tAssembling dataset')
     ds = xr.Dataset(
             data_vars = data_var,
             coords={
@@ -139,6 +145,10 @@ if __name__ == "__main__":
 
     #s = ds.chunks(time=100)
 
+    print(f'\n\tWriting to zarr..')
     ds.to_zarr(ZARR_PATH, mode='w', consolidated=True)
+
+    print(f'\n\tZarr file {ZARR_PATH} written')
+    print(f'\n\t DONE! Closing client..\n\n')
 
     client.close()
