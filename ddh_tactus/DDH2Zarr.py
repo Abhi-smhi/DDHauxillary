@@ -16,10 +16,11 @@ from dask.distributed import Client, get_client, progress
 INPUT_DIR = "/ec/res4/scratch/swe7088/deode/ddh_mat_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/"
 PATTERN         = "DHFDLDEOD+*s"
 NWORKER         = 32
-MEMLIMIT        = '16GB'
+MEMLIMIT        = '32GB'
 BATCH_SIZE      = 10
 ARTICLE_FILE    = 'ddh_article_list3'
 OUTPUT_FILE     = "/perm/swe7088/dask_test_out2D.zarr"
+GEO_FILE        = 'geom_ddh.dat'
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STARTS HERE                          │
@@ -42,30 +43,25 @@ def read_file_T(fasta_path):
 
 def read_DDH_meta(file):
     '''
-    Use this only once, epygram is rather slow with dask
     '''
-    import epygram as epg
-    res =  epg.formats.resource(file_list[0], openmode='r', fmt='DDHLFA')
-    geom = res.domains['geometry']
-    n_levels = len(res.readfield('VPP0')[0].geometry.vcoordinate.levels)
+    import pandas  as pd
+    domain = pd.read_csv(file)
 
-    # Pre-calculate mapping indices
-    jgl = np.array([d['jgl'] for d in geom])
-    jlon = np.array([d['jlon'] for d in geom])
-    lats = np.array([d['lat'].get() for d in geom])
-    lons = np.array([d['lon'].get() for d in geom])
+    jlon = domain['jlon'].values
+    jgl = domain['jgl'].values
 
-    # -- grid data
-    jgl_un = np.unique(jgl)
+    lon = domain['lons'].values
+    lat = domain['lats'].values
+
     jlon_un = np.unique(jlon)
+    jgl_un = np.unique(jgl)
 
-    lons_grid = lons.reshape((jlon_un.size, jgl_un.size), order='F')
-    lats_grid = lats.reshape((jlon_un.size, jgl_un.size), order='F')
+    lons_grid = lon.reshape(jlon_un.size, jgl_un.size, order='F')
+    lats_grid = lat.reshape(jlon_un.size, jgl_un.size, order='F')
 
-    res.close()
-    del epg
+    n_levels = 90 # Hardcoded for now
 
-    return n_levels, jlon_un, jgl_un, jlon, jgl, lons_grid, lats_grid
+    return n_levels, jlon_un, jgl_un, lons_grid, lats_grid, jlon, jgl
 
 def read_DDH_data(path, articles, n_levels, n_lon, n_lat):
     data = np.zeros([len(articles), n_levels, n_lon, n_lat])
@@ -97,8 +93,9 @@ if __name__ == "__main__":
 
     file_list = sorted(glob.glob(INPUT_DIR + PATTERN))
     n_times = len(file_list)
-    n_levels, jlon_un, jgl_un, jlon, jgl, lons_grid, lats_grid = read_DDH_meta(file_list[0])
-    n_domains = jlon.size
+    n_levels, jlon_un, jgl_un, lons_grid, lats_grid, jlon, jgl = read_DDH_meta(GEO_FILE)
+
+    n_domains = jlon_un.size * jgl_un.size
     n_lon = jlon_un.size
     n_lat = jgl_un.size
     n_times = len(file_list)
