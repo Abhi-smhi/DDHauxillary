@@ -1,8 +1,12 @@
 import glob
+import time
 import subprocess
 import numpy as np
-import dask.bag as db
+import xarray as xr
 import dask
+import dask.bag as db
+import dask.array as da
+import pandas as pd
 from dask.distributed import Client, get_client, progress
 
 
@@ -10,9 +14,13 @@ from dask.distributed import Client, get_client, progress
 # │                           USER CONFIG STARTS HERE                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 INPUT_DIR = "/ec/res4/scratch/swe7088/deode/ddh_mat_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/"
-PATTERN = "DHFDLDEOD+*s"
-NWORKER = 2
-MEMLIMIT = '16GB'
+PATTERN         = "DHFDLDEOD+*s"
+NWORKER         = 32
+MEMLIMIT        = '16GB'
+BATCH_SIZE      = 10
+ARTICLE_FILE    = 'ddh_article_list3'
+OUTPUT_FILE     = "/perm/swe7088/dask_test_out2D.zarr"
+
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STARTS HERE                          │
 # └────────────────────────────────────────────────────────────────────────────┘
@@ -40,7 +48,6 @@ def read_DDH_meta(file):
     res =  epg.formats.resource(file_list[0], openmode='r', fmt='DDHLFA')
     geom = res.domains['geometry']
     n_levels = len(res.readfield('VPP0')[0].geometry.vcoordinate.levels)
-    res.close()
 
     # Pre-calculate mapping indices
     jgl = np.array([d['jgl'] for d in geom])
@@ -51,16 +58,18 @@ def read_DDH_meta(file):
     # -- grid data
     jgl_un = np.unique(jgl)
     jlon_un = np.unique(jlon)
-    lats = np.array(lats)
-    lons = np.array(lons)
 
     lons_grid = lons.reshape((jlon_un.size, jgl_un.size), order='F')
     lats_grid = lats.reshape((jlon_un.size, jgl_un.size), order='F')
 
+    res.close()
+    del epg
+
     return n_levels, jlon_un, jgl_un, jlon, jgl, lons_grid, lats_grid
 
-def read_DDH_data(path, articles, n_levels, n_domains):
-    data = np.zeros([len(articles), n_levels, n_domains])
+def read_DDH_data(path, articles, n_levels, n_lon, n_lat):
+    data = np.zeros([len(articles), n_levels, n_lon, n_lat])
+
     for i, article in enumerate(articles):
         result_article = subprocess.run([
            "lfac",
@@ -70,17 +79,39 @@ def read_DDH_data(path, articles, n_levels, n_domains):
         capture_output=True,
         text=True,
         check=True)
-
-        data[i, :,:] = (np.fromstring(result_article.stdout, sep ='\n')
-                .reshape(n_domains,n_levels).transpose())
+        data[i] = (np.fromstring(result_article.stdout, sep ='\n')
+                .reshape(n_levels, n_lon, n_lat, order='F'))
     return data
+
+def read_batch(files, articles, n_levels, n_lon, n_lat):
+    data_batch = []
+    for f in files:
+        data = read_DDH_data(f, articles, n_levels, n_lon, n_lat)
+        data_batch.append(data)
+
+    return np.stack(data_batch, axis=0)
+
 
 
 if __name__ == "__main__":
 
-
     file_list = sorted(glob.glob(INPUT_DIR + PATTERN))
+    n_times = len(file_list)
     n_levels, jlon_un, jgl_un, jlon, jgl, lons_grid, lats_grid = read_DDH_meta(file_list[0])
+    n_domains = jlon.size
+    n_lon = jlon_un.size
+    n_lat = jgl_un.size
+    n_times = len(file_list)
+
+    print(f'\n\n-------------------------INFO------------------------------')
+    print(f'Found {n_times} DDH files')
+    print(f'DDH files contain {n_domains} domains')
+    print(f'Grid: {n_levels} levels, {n_lon} nlon, {n_lat} nlats')
+    print(f'-----------------------------------------------------------')
+
+
+    # -- ddh articles to process
+    articles = pd.read_table(ARTICLE_FILE).values.flatten()
 
     with Client(n_workers=NWORKER, threads_per_worker=1, memory_limit=MEMLIMIT) as client:
         print(f'\n\nStarted Dask client {client}')
@@ -93,4 +124,47 @@ if __name__ == "__main__":
         print(f'[Dask] Computing DDH validities')
         progress(persist)
         actual_times = persist.compute()
+
+
+        print('Reading DDH data')
+        articles_future = client.scatter(articles, broadcast=True)
+        file_batches = [file_list[i:i+BATCH_SIZE] for i in range(0, len(file_list), BATCH_SIZE)]
+
+        lazy_batches = []
+
+        for batch in file_batches:
+            current_shape = (len(batch), len(articles), n_levels, n_lon, n_lat)
+            d_part  = dask.delayed(read_batch)(batch, articles_future, n_levels, n_lon, n_lat)
+            b_array = da.from_delayed(d_part, shape=current_shape, dtype='float64')
+            lazy_batches.append(b_array)
+
+        print(f'[Dask] Reading data in {len(file_batches)} batches')
+        da_stack = da.concatenate(lazy_batches, axis=0)
+
+        print(f'[xarray] Creating data array')
+        d_array = xr.DataArray(
+                data=da_stack,
+                dims = ['time', 'article', 'level', 'jlon', 'jgl'],
+                coords = {
+                    'time': actual_times,
+                    'article': articles,
+                    'level': np.arange(n_levels) + 1,
+                    'jlon': jlon_un,
+                    'jgl': jgl_un,
+                    'longitude': (['jlon', 'jgl'], lons_grid),
+                    'latitude': (['jlon', 'jgl'], lats_grid)
+                    }
+
+                )
+        print(f'[xarray] Datasets for each article')
+        ds = d_array.to_dataset(dim='article')
+
+        print(f'[Dask] Writing to {OUTPUT_FILE}')
+        write_job = client.persist(ds.to_zarr(OUTPUT_FILE, compute=False, mode='w'))
+        t_start = time.time()
+        progress(write_job)
+        t_end = time.time()
+        duration = int(t_end - t_start)
+        print(f'[Dask] Writing completed in {duration} seconds')
+        print(f'[Dask] Done, closing dask client')
 
