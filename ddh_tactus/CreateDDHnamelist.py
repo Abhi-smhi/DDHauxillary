@@ -22,6 +22,7 @@ LONMIN, LATMIN, LONMAX, LATMAX = [2.189602, 48.811711, 2.497532, 48.921035]
 INPUT_FILE = '/scratch/swe7088/deode/LEO_test_osm_pgd_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/GRIBPFDEOD+0026h00m00s'
 OUTPUT_CONFIG = 'ddh_modif_large.toml'
 GEOM_FILE  = 'geom_ddh_large.dat'
+EVERY   = 4     # Every nth grid-point in the extraction zone
 PLOT_DOMAIN = True
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
@@ -72,8 +73,7 @@ if __name__ == "__main__":
     with  epg.formats.resource(INPUT_FILE, 'r') as res_epg:
         print('Reading field (CLSTEMPERATURE/2 metre temperature)')
         if res_epg.format == 'FA':
-            field = res_epg.readfield('S010WIND.U.PHYS')
-            field.sp2gp()
+            field = res_epg.readfield('CLSTEMPERATURE')
         elif res_epg.format == 'GRIB':
             field = res_epg.readfield({'name':'2 metre temperature'})
 
@@ -91,8 +91,8 @@ if __name__ == "__main__":
     jmin = max(int(np.ceil(jmin)), 0)
     jmax = min(int(np.floor(jmax)), field.geometry.dimensions['Y'] - 1)
 
-    jlon = np.arange(start=imin, stop=imax+1)
-    jgl  = np.arange(start=jmin, stop=jmax+1)
+    jlon = np.arange(start=imin, stop=imax+1)[::EVERY]
+    jgl  = np.arange(start=jmin, stop=jmax+1)[::EVERY]
     jlon_grid, jgl_grid = np.meshgrid(jlon, jgl, indexing = 'ij')
 
     lons, lats =  field.geometry.ij2ll(jlon_grid, jgl_grid)
