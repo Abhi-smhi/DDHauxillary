@@ -24,7 +24,7 @@ OUTPUT_FILE     = "/perm/swe7088/dask_test_out2D.zarr"
 GEOM_FILE        = 'geom_ddh.dat'
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
-# │                           USER CONFIG STARTS HERE                          │
+# │                           USER CONFIG ENDS HERE                            │
 # └────────────────────────────────────────────────────────────────────────────┘
 
 
