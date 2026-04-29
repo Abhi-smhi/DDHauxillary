@@ -5,28 +5,23 @@ import cartopy.crs as ccrs
 import numpy as np
 import pandas as pd
 
+
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STARTS HERE                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 
-
 # Bounding box tool: https://tools.mofei.life/bbox
 
-LONMIN=2.1
-LONMAX=2.61
-LATMIN=48.70
-LATMAX=49.00
+LONMIN, LATMIN, LONMAX, LATMAX = [2.189602, 48.811711, 2.497532, 48.921035]
 
 #LONMIN = 2.310136054323812
 #LONMAX = 2.3537636353760402
 #LATMIN = 48.84862807230194
 #LATMAX = 48.87445809543949
 
-
-
 INPUT_FILE = '/scratch/swe7088/deode/LEO_test_osm_pgd_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/GRIBPFDEOD+0026h00m00s'
-OUTPUT_CONFIG = 'ddh_modif.toml'
-GEOM_FILE  = 'geom_ddh.dat'
+OUTPUT_CONFIG = 'ddh_modif_large.toml'
+GEOM_FILE  = 'geom_ddh_large.dat'
 PLOT_DOMAIN = True
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
@@ -47,8 +42,8 @@ def generate_bdeddh_entries(jlons, jgls):
     Generates entries for NAMDDH for all grid points in input array
 
     Parameters:
-    jlons: 1d array dim(n_points)
-    jgls: 1d array dim(n_points)
+    jlons: 1d/2d array dim(jlon,jgl) or dim(n_points)
+    jgls: 1d/2d array  dim(jlon,jgl) or dim(n_points)
 
 
     Returns:
@@ -91,10 +86,10 @@ if __name__ == "__main__":
     imin, jmin = field.geometry.ll2ij(LONMIN, LATMIN)
     imax, jmax = field.geometry.ll2ij(LONMAX, LATMAX)
 
-    imin = max(int(np.round(imin)), 0)
-    imax = min(int(np.round(imax)), field.geometry.dimensions['X'] - 1)
-    jmin = max(int(np.round(jmin)), 0)
-    jmax = min(int(np.round(jmax)), field.geometry.dimensions['Y'] - 1)
+    imin = max(int(np.ceil(imin)), 0)
+    imax = min(int(np.floor(imax)), field.geometry.dimensions['X'] - 1)
+    jmin = max(int(np.ceil(jmin)), 0)
+    jmax = min(int(np.floor(jmax)), field.geometry.dimensions['Y'] - 1)
 
     jlon = np.arange(start=imin, stop=imax+1)
     jgl  = np.arange(start=jmin, stop=jmax+1)
@@ -116,7 +111,7 @@ if __name__ == "__main__":
     pd.DataFrame(domain_data).to_csv(GEOM_FILE)
 
     print(f'Writing config file {OUTPUT_CONFIG}')
-    wstring = generate_bdeddh_entries(jlon, jgl)
+    wstring = generate_bdeddh_entries(jlon_grid, jgl_grid)
 
     with open(OUTPUT_CONFIG, 'w') as file:
         file.write('[namelist_update.master.forecast.NAMDDH]\n' + wstring)
