@@ -11,14 +11,23 @@ import pandas as pd
 
 
 # Bounding box tool: https://tools.mofei.life/bbox
-LONMIN = 2.310136054323812
-LONMAX = 2.3537636353760402
-LATMIN = 48.84862807230194
-LATMAX = 48.87445809543949
+
+LONMIN=2.1
+LONMAX=2.61
+LATMIN=48.70
+LATMAX=49.00
+
+#LONMIN = 2.310136054323812
+#LONMAX = 2.3537636353760402
+#LATMIN = 48.84862807230194
+#LATMAX = 48.87445809543949
+
+
+
 INPUT_FILE = '/scratch/swe7088/deode/LEO_test_osm_pgd_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/GRIBPFDEOD+0026h00m00s'
 OUTPUT_CONFIG = 'ddh_modif.toml'
 GEOM_FILE  = 'geom_ddh.dat'
-PLOT_DOMAIN = False
+PLOT_DOMAIN = True
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STOPS HERE                           │
@@ -28,7 +37,7 @@ PLOT_DOMAIN = False
 print(f"\n{'-' * 40} SETTINGS {'-' * 40}")
 print(f"  INFILE  :: {INPUT_FILE}")
 print(f"  OUT     :: {OUTPUT_CONFIG}")
-print(f"  AREA    :: {LONMIN}°W, {LONMAX}°E / {LATMIN}°S, {LATMAX}°N")
+print(f"  AREA    :: [{LONMIN}, {LONMAX} / {LATMIN}, {LATMAX}]")
 print(f"{'-' * 90}")
 
 def generate_bdeddh_entries(jlons, jgls):
@@ -76,29 +85,31 @@ if __name__ == "__main__":
     print(f'Extracting zoom [{LONMIN}, {LONMAX}, {LATMIN}, {LATMAX}]')
     zoom = dict(lonmin=LONMIN, lonmax=LONMAX, latmin=LATMIN, latmax=LATMAX)
     field_zoom = field.extract_zoom(zoom)
-#    lons, lats = field_zoom.field_zoom.geo
-    lons, lats = field_zoom.geometry.get_lonlat_grid()
 
-    print(f'Found {lons.size} DDH domains')
 
     # Find the exact jlon and jgl for this
     imin, jmin = field.geometry.ll2ij(LONMIN, LATMIN)
     imax, jmax = field.geometry.ll2ij(LONMAX, LATMAX)
 
-    imin = max(int(np.ceil(imin)), 0)
-    imax = min(int(np.floor(imax)), field.geometry.dimensions['X'] - 1)
-    jmin = max(int(np.ceil(jmin)), 0)
-    jmax = min(int(np.floor(jmax)), field.geometry.dimensions['Y'] - 1)
+    imin = max(int(np.round(imin)), 0)
+    imax = min(int(np.round(imax)), field.geometry.dimensions['X'] - 1)
+    jmin = max(int(np.round(jmin)), 0)
+    jmax = min(int(np.round(jmax)), field.geometry.dimensions['Y'] - 1)
 
     jlon = np.arange(start=imin, stop=imax+1)
     jgl  = np.arange(start=jmin, stop=jmax+1)
     jlon_grid, jgl_grid = np.meshgrid(jlon, jgl, indexing = 'ij')
 
+    lons, lats =  field.geometry.ij2ll(jlon_grid, jgl_grid)
+    print(f'Generating {lons.size} individual DDH domains in grid')
+    print(f'Grid: {jlon.size} (jlon) X {jgl.size} (jgl)')
+
     domain_data = {
             'jlon': jlon_grid.flatten(order='F'),
-            'jgl': jgl_grid.flatten(order='F'),
-            'lons': lons,
-            'lats': lats}
+            'jgl': jgl_grid.flatten(order='f'),
+            'lons': lons.flatten(order='f'),
+            'lats': lats.flatten(order='f'),
+            }
 
 
     print(f'Writing geometry data to {GEOM_FILE}')
