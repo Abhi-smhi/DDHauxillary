@@ -14,13 +14,14 @@ from dask.distributed import Client, get_client, progress
 # │                           USER CONFIG STARTS HERE                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 INPUT_DIR = "/ec/res4/scratch/swe7088/deode/ddh_mat_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/"
+INPUT_DIR = "/ec/res4/scratch/swe7088/deode/ddh_mat2_CY49t2_HARMONIE_AROME_LES_input_Paris_200m_linear_20230820/archive/2023/08/20/12/mbr000/"
 PATTERN         = "DHFDLDEOD+*s"
 NWORKER         = 32
 MEMLIMIT        = '32GB'
 BATCH_SIZE      = 10
 ARTICLE_FILE    = 'ddh_article_list3'
 OUTPUT_FILE     = "/perm/swe7088/dask_test_out2D.zarr"
-GEO_FILE        = 'geom_ddh.dat'
+GEOM_FILE        = 'geom_ddh.dat'
 
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │                           USER CONFIG STARTS HERE                          │
@@ -93,7 +94,7 @@ if __name__ == "__main__":
 
     file_list = sorted(glob.glob(INPUT_DIR + PATTERN))
     n_times = len(file_list)
-    n_levels, jlon_un, jgl_un, lons_grid, lats_grid, jlon, jgl = read_DDH_meta(GEO_FILE)
+    n_levels, jlon_un, jgl_un, lons_grid, lats_grid, jlon, jgl = read_DDH_meta(GEOM_FILE)
 
     n_domains = jlon_un.size * jgl_un.size
     n_lon = jlon_un.size
