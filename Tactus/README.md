@@ -1,10 +1,10 @@
 # DDH in Tactus
 
-This repository provides tools for adding Diagnostic par Domaines Horizontaux
-(DDH) domains to AROME/HARMONIE-AROME experiments within the Tactus system and
-post-processing the output. The scripts `CreateDDHnamelist.py` is used to
-extract gridpoints within a region of interest which are used to configure the
-AROME/HARMONIE-AROME experiement to output vertical profiles (for all lon/lat
+This part of the repository provides tools for adding DDH domains to
+AROME/HARMONIE-AROME experiments within the Tactus system and post-processing
+the output. The script `CreateDDHnamelist.py` can be used used to extract
+gridpoints within a region of interest which are used to configure the
+AROME/HARMONIE-AROME experiment to output vertical profiles (for all lon/lat
 points) within this region.  Then, `DDH2Zarr.py` can be used to consolidate the
 (potentially large number of) DDH output files into a single multi-dimensional
 Zarr chunk which can be read by `xarray` for plotting or further conversion to
@@ -56,7 +56,10 @@ experiment:
 
 1.  **Edit `ddh_pre.toml`**:
     * **DDH Output Frequency**: Set `general.output_settings.ddh_dl`.
-    * **Step Limit Note**: If the array containing write-out steps exceeds 960 (see `arpifs/module/yomct0.F90`), comment out `namelist_update.master.forecast.NAMCT0.NDHFDTS` and set `namelist_update.master.forecast.NAMCT0.NFRDHFD = n` to output every $n^{th}$ step.
+    * **Step Limit Note**: If the array containing write-out steps exceeds 960
+      (see `arpifs/module/yomct0.F90`), comment out
+`namelist_update.master.forecast.NAMCT0.NDHFDTS` and set
+`namelist_update.master.forecast.NAMCT0.NFRDHFD = {n}` to output every {n}th step.
     * **Prefix**: Modify `scheduler.ecfvars.case_prefix`, use a suitable name to differentiate the new experiment.
 
 2.  **Generate the Configuration**:
@@ -69,7 +72,8 @@ experiment:
 
 ### Part C: Converting DDH Output to Zarr
 
-Use `DDH2Zarr.py` to combine DDH outputs from all time-steps into a single Zarr file. This script utilizes `Dask` for parallel processing.
+Use `DDH2Zarr.py` to combine DDH outputs from all time-steps into a single Zarr
+file. This script utilizes `Dask` for parallel processing.
 
 #### Configuration
 Edit the following variables in `DDH2Zarr.py`:
@@ -82,7 +86,9 @@ Edit the following variables in `DDH2Zarr.py`:
 * `OUTPUT_FILE`: Path for the resulting Zarr file.
 
 #### Execution
-On **ATOS**, it is recommended to use an interactive job for speed:
+On **ATOS**, it is recommended to use an interactive job for speed. The
+following starts a job with 32 cores (NWORKER = 32) with 32Gb of available
+memory, and runs the post-processing script:
 ```bash
 ecinteractive -c32 -m 32G -t 0:30:00
 python DDH2Zarr.py
@@ -93,3 +99,4 @@ python DDH2Zarr.py
 ## TODO
 - [ ] Implement fluxes using half-level output.
 - [ ] Add unit conversion (extensive to intensive).
+- [ ] Conversion to NetCDF (can be memory intensive).
