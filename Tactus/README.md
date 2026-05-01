@@ -100,3 +100,4 @@ python DDH2Zarr.py
 - [ ] Implement fluxes using half-level output.
 - [ ] Add unit conversion (extensive to intensive).
 - [ ] Conversion to NetCDF (can be memory intensive).
+- [ ] Modify directly instead of starting with ddh_pre
